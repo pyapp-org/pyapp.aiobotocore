@@ -1,5 +1,7 @@
 import aiobotocore
 
+from pyapp.conf.helpers import ThreadLocalNamedSingletonFactory
+
 
 class SessionFactory(ThreadLocalNamedSingletonFactory):
     """
