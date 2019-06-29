@@ -1,5 +1,5 @@
 AWS_CREDENTIALS = {
-    'default': {}
+    "default": {}
 }
 """
 Named sets of credentials for AWS.

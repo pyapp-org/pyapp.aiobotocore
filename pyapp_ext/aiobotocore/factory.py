@@ -1,9 +1,12 @@
 import aiobotocore
 
+from botocore.session import Session
 from pyapp.conf.helpers import ThreadLocalNamedSingletonFactory
 
+__all__ = ("Session", "session_factory", "create_client")
 
-class SessionFactory(ThreadLocalNamedSingletonFactory):
+
+class SessionFactory(ThreadLocalNamedSingletonFactory[Session]):
     """
     Factory for creating AWS sessions.
     """
@@ -14,7 +17,7 @@ class SessionFactory(ThreadLocalNamedSingletonFactory):
         "aws_session_token": None,
     }
 
-    def create_instance(self, name=None):
+    def create(self, name: str = None) -> Session:
         config = self.get(name)
         session = aiobotocore.get_session()
 
@@ -28,4 +31,12 @@ class SessionFactory(ThreadLocalNamedSingletonFactory):
         return session
 
 
-session_factory = SessionFactory('AWS')
+session_factory = SessionFactory('AWS_CREDENTIALS')
+
+
+def create_client(service_name: str, config_name: str = None):
+    """
+    Factory for creating AWS clients.
+    """
+    session = session_factory.create(config_name)
+    return session.create_client(service_name)
