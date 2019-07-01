@@ -3,7 +3,7 @@ import aiobotocore
 from botocore.session import Session
 from pyapp.conf.helpers import ThreadLocalNamedSingletonFactory
 
-__all__ = ("Session", "session_factory", "create_client")
+__all__ = ("Session", "session_factory", "get_session", "create_client")
 
 
 class SessionFactory(ThreadLocalNamedSingletonFactory[Session]):
@@ -40,6 +40,7 @@ class SessionFactory(ThreadLocalNamedSingletonFactory[Session]):
 
 
 session_factory = SessionFactory("AWS_CREDENTIALS")
+get_session = session_factory.create
 
 
 def create_client(service_name: str, config_name: str = None):
