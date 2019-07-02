@@ -58,7 +58,7 @@ The following example obtains an S3 client::
 API
 ===
 
-`pyapp_ext.aiobotocore.create_client(service_name: str, config_name: str = None)`
+`pyapp_ext.aiobotocore.create_client(service_name: str, *, credentials: str = None, **client_kwargs)`
 
     Get an async botocore service client instance.
 

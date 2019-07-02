@@ -1,9 +1,9 @@
 import aiobotocore
 
 from botocore.session import Session
-from pyapp.conf.helpers import ThreadLocalNamedSingletonFactory, NamedConfiguration
+from pyapp.conf.helpers import ThreadLocalNamedSingletonFactory
 
-__all__ = ("Session", "session_factory", "get_session", "create_client", "client_factory", "get_client")
+__all__ = ("Session", "session_factory", "get_session", "create_client")
 
 
 class SessionFactory(ThreadLocalNamedSingletonFactory[Session]):
@@ -49,40 +49,3 @@ def create_client(service_name: str, *, credentials: str = None, **client_kwargs
     """
     session = get_session(credentials)
     return session.create_client(service_name, **client_kwargs)
-
-
-class ClientFactory(NamedConfiguration):
-    """
-    Factory for creating AWS clients from configuration.
-
-    This factory uses a nested settings structure::
-
-        AWS = {
-            "SQS": {
-                "job_queue": {
-                    "queue_url": "...",
-                    "credentials": "default"
-                }
-            }
-        }
-
-    """
-    def create(self, service_name: str, name: str):
-        """
-        Create an AWS service client.
-
-        :param service_name: Name of the AWS service
-        :param name: Name of the service entry
-
-        """
-        service_name = service_name.upper()
-        service_config = self.get(service_name)
-        try:
-            config = service_config[name]
-        except KeyError:
-            raise KeyError(f"Service name `{name}` not found in AWS[{service_name}]")
-        return create_client(service_name, **config)
-
-
-client_factory = ClientFactory("AWS_CLIENTS")
-get_client = client_factory.create
