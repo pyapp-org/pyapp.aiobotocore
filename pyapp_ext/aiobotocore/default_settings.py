@@ -12,3 +12,25 @@ Example::
     }}
 
 """
+
+AWS_CLIENTS = {}
+"""
+AWS client configuration.
+
+Example::
+
+    AWS = {
+        "S3": {
+            "incoming": {
+                "credentials: "default",
+                "BucketName": "myapp.incoming",
+            }
+        },
+        "SQS": {
+            "job_queue": {
+                "url": "",
+            }
+        }
+    }
+
+"""
