@@ -12,18 +12,19 @@ class SessionFactory(ThreadLocalNamedSingletonFactory[Session]):
     """
 
     defaults = {
-        "region_name": None,
         "aws_access_key_id": None,
         "aws_secret_access_key": None,
         "aws_session_token": None,
     }
+    optional_keys = ["region", "endpoint_url", "profile"]
 
     def create(self, name: str = None) -> Session:
         config = self.get(name)
         session = aiobotocore.get_session()
 
-        if config["region_name"]:
-            session.set_config_variable("region", config["region_name"])
+        for config_var in ("profile", "region"):
+            if config_var in config:
+                session.set_config_variable(config_var, config[config_var])
 
         if (
             config["aws_access_key_id"]
@@ -43,9 +44,9 @@ session_factory = SessionFactory("AWS_CREDENTIALS")
 get_session = session_factory.create
 
 
-def create_client(service_name: str, config_name: str = None):
+def create_client(service_name: str, config_name: str = None, **client_args):
     """
     Factory for creating AWS clients.
     """
     session = session_factory.create(config_name)
-    return session.create_client(service_name)
+    return session.create_client(service_name, **client_args)
