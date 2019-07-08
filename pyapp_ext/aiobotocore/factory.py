@@ -46,7 +46,7 @@ get_session = session_factory.create
 
 def create_client(service_name: str, config_name: str = None, **client_args):
     """
-    Factory for creating AWS clients.
+    Create an arbitrary AWS service client.
     """
     session = session_factory.create(config_name)
     return session.create_client(service_name, **client_args)
