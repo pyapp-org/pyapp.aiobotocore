@@ -85,18 +85,17 @@ class MessageSender(SQSBase, bases.MessageSender):
         attributes = {}
         if content_type:
             attributes["ContentType"] = {
-                "DataType": "string",
+                "DataType": "String",
                 "StringValue": content_type,
             }
         if content_encoding:
             attributes["ContentEncoding"] = {
-                "DataType": "string",
+                "DataType": "String",
                 "StringValue": content_encoding,
             }
 
         await self._client.send_message(
-            QueueUrl=self._queue_url, MessageBody=body,
-            # MessageAttributes=attributes
+            QueueUrl=self._queue_url, MessageBody=body, MessageAttributes=attributes
         )
 
 
@@ -117,12 +116,26 @@ class MessageReceiver(SQSBase, bases.MessageReceiver):
         while True:
             try:
                 response = await client.receive_message(
-                    QueueUrl=queue_url, WaitTimeSeconds=10
+                    QueueUrl=queue_url,
+                    WaitTimeSeconds=10,
+                    MessageAttributeNames=["ContentType", "ContentEncoding"],
                 )
 
                 if "Messages" in response:
                     for msg in response["Messages"]:
-                        await self.receive(msg["Body"])
+                        attrs = msg["MessageAttributes"]
+                        content_type = (
+                            attrs["ContentType"]["StringValue"]
+                            if "ContentType" in attrs
+                            else None
+                        )
+                        content_encoding = (
+                            attrs["ContentEncoding"]["StringValue"]
+                            if "ContentEncoding" in attrs
+                            else None
+                        )
+
+                        await self.receive(msg["Body"], content_type, content_encoding)
                         await client.delete_message(
                             QueueUrl=queue_url, ReceiptHandle=msg["ReceiptHandle"]
                         )
