@@ -14,6 +14,24 @@ __all__ = ("MessageSender", "MessageReceiver")
 logger = logging.getLogger(__file__)
 
 
+def build_attributes(**attrs):
+    attributes = {}
+    for key, value in attrs.items():
+        if value is not None:
+            attributes[key] = {
+                "DataType": "String",
+                "StringValue": value,
+            }
+    return attributes
+
+
+def parse_attributes(attributes):
+    attrs = {}
+    for key, value in attributes.items():
+        attrs[key] = value["StringValue"]
+    return attrs
+
+
 class SQSBase:
     """
     Base Message Queue
@@ -68,40 +86,30 @@ class SQSBase:
 
 class MessageSender(SQSBase, bases.MessageSender):
     """
-    AIO Pika based message sender/publisher.
-
-    With AMQP senders and publishers are the same.
-
+    AIO SQS message sender.
     """
 
     __slots__ = ()
 
     async def send_raw(
         self, body: bytes, *, content_type: str = None, content_encoding: str = None
-    ):
+    ) -> str:
         """
         Publish a raw message (message is raw bytes)
         """
-        attributes = {}
-        if content_type:
-            attributes["ContentType"] = {
-                "DataType": "String",
-                "StringValue": content_type,
-            }
-        if content_encoding:
-            attributes["ContentEncoding"] = {
-                "DataType": "String",
-                "StringValue": content_encoding,
-            }
-
-        await self._client.send_message(
+        attributes = build_attributes(
+            ContentType=content_type,
+            ContentEncoding=content_type,
+        )
+        response = await self._client.send_message(
             QueueUrl=self._queue_url, MessageBody=body, MessageAttributes=attributes
         )
+        return response["MessageId"]
 
 
 class MessageReceiver(SQSBase, bases.MessageReceiver):
     """
-    AIO Pika based message receiver
+    AIO SQS message receiver.
     """
 
     __slots__ = ()
@@ -123,19 +131,13 @@ class MessageReceiver(SQSBase, bases.MessageReceiver):
 
                 if "Messages" in response:
                     for msg in response["Messages"]:
-                        attrs = msg["MessageAttributes"]
-                        content_type = (
-                            attrs["ContentType"]["StringValue"]
-                            if "ContentType" in attrs
-                            else None
-                        )
-                        content_encoding = (
-                            attrs["ContentEncoding"]["StringValue"]
-                            if "ContentEncoding" in attrs
-                            else None
-                        )
+                        attrs = parse_attributes(msg["MessageAttributes"])
 
-                        await self.receive(msg["Body"], content_type, content_encoding)
+                        await self.receive(
+                            msg["Body"],
+                            attrs.get("ContentType"),
+                            attrs.get("ContentEncoding")
+                        )
                         await client.delete_message(
                             QueueUrl=queue_url, ReceiptHandle=msg["ReceiptHandle"]
                         )
@@ -144,3 +146,59 @@ class MessageReceiver(SQSBase, bases.MessageReceiver):
 
             except botocore.exceptions.ClientError:
                 raise
+
+
+class SNSBase:
+    """
+    Base Pub/Sub Queue
+    """
+
+    __slots__ = ("topic_arn", "aws_config", "client_args", "_client")
+
+    def __init__(
+        self,
+        topic_arn: str,
+        aws_config: str = None,
+        client_args: Dict[str, Any] = None,
+    ):
+        self.topic_arn = topic_arn
+        self.aws_config = aws_config
+        self.client_args = client_args or {}
+
+        self._client = None
+
+    async def open(self):
+        """
+        Open queue
+        """
+        client = create_client("sns", self.aws_config, **self.client_args)
+
+        self._client = client
+
+    async def close(self):
+        """
+        Close Queue
+        """
+        if self._client:
+            await self._client.close()
+            self._client = None
+
+
+class MessagePublisher(SNSBase, bases.MessagePublisher):
+    """
+    AIO SNS message publisher.
+    """
+
+    __slots__ = ()
+
+    async def publish_raw(self, body: bytes, *, content_type: str = None, content_encoding: str = None) -> str:
+        attributes = build_attributes(
+            ContentType=content_type,
+            ContentEncoding=content_type,
+        )
+        response = self._client.publish(
+            TopicArn=self.topic_arn,
+            Message=body,
+            MessageAttributes=attributes,
+        )
+        return response["MessageId"]
