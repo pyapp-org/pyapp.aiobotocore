@@ -107,9 +107,9 @@ class MessageSender(SQSBase, bases.MessageSender):
         return response["MessageId"]
 
 
-class MessageReceiver(SQSBase, bases.MessageReceiver):
+class MessageReceiver(SQSBase, bases.MessageReceiver, bases.MessageSubscriber):
     """
-    AIO SQS message receiver.
+    AIO SQS message receiver/subscriber
     """
 
     __slots__ = ()
