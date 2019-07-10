@@ -62,10 +62,8 @@ class SQSBase:
             response = await client.get_queue_url(QueueName=self.queue_name)
         except botocore.exceptions.ClientError as err:
             await client.close()
-            if (
-                err.response["Error"]["Code"]
-                == "AWS.SimpleQueueService.NonExistentQueue"
-            ):
+            error_code = err.response["Error"]["Code"]
+            if error_code == "AWS.SimpleQueueService.NonExistentQueue":
                 raise QueueNotFound(f"Unable to find queue `{self.queue_name}`")
             else:
                 raise
@@ -82,6 +80,22 @@ class SQSBase:
             self._client = None
 
         self._queue_url = None
+
+    async def configure(self):
+        """
+        Define any send queues
+        """
+        client = create_client("sqs", self.aws_config, **self.client_args)
+
+        try:
+            response = await client.create_queue(QueueName=self.queue_name)
+        except botocore.exceptions.ClientError as err:
+            error_code = err.response["Error"]["Code"]
+            raise
+        else:
+            return response["QueueUrl"]
+        finally:
+            await client.close()
 
 
 class MessageSender(SQSBase, bases.MessageSender):
