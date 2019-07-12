@@ -18,6 +18,8 @@ details to be configured via pyApp settings.
 
 The extension also provides checks to confirm the settings are correct.
 
+The extension now supports the standardised 
+`pyApp-Messaging <https://github.com/pyapp-org/pyapp-messaging>`_ interface.
 
 Installation
 ============
@@ -66,3 +68,5 @@ API
 `pyapp_ext.aiobotocore.get_session(default: str = None) -> Session`
 
     Get named `Session` instance.
+
+    
