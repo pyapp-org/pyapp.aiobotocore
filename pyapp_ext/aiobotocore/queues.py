@@ -8,7 +8,7 @@ from pyapp_ext.messaging.exceptions import QueueNotFound
 
 from .factory import create_client
 
-__all__ = ("MessageSender", "MessageReceiver")
+__all__ = ("SQSSender", "SQSReceiver", "SNSSender")
 
 
 logger = logging.getLogger(__file__)
@@ -98,7 +98,7 @@ class SQSBase:
             await client.close()
 
 
-class MessageSender(SQSBase, bases.MessageSender):
+class SQSSender(SQSBase, bases.MessageSender):
     """
     AIO SQS message sender.
     """
@@ -121,7 +121,7 @@ class MessageSender(SQSBase, bases.MessageSender):
         return response["MessageId"]
 
 
-class MessageReceiver(SQSBase, bases.MessageReceiver, bases.MessageSubscriber):
+class SQSReceiver(SQSBase, bases.MessageReceiver):
     """
     AIO SQS message receiver/subscriber
     """
@@ -198,14 +198,14 @@ class SNSBase:
             self._client = None
 
 
-class MessagePublisher(SNSBase, bases.MessagePublisher):
+class SNSSender(SNSBase, bases.MessageSender):
     """
     AIO SNS message publisher.
     """
 
     __slots__ = ()
 
-    async def publish_raw(self, body: bytes, *, content_type: str = None, content_encoding: str = None) -> str:
+    async def send_raw(self, body: bytes, *, content_type: str = None, content_encoding: str = None) -> str:
         attributes = build_attributes(
             ContentType=content_type,
             ContentEncoding=content_type,
