@@ -8,7 +8,7 @@ from pyapp_ext.messaging.exceptions import QueueNotFound
 
 from .factory import create_client
 
-__all__ = ("MessageSender", "MessageReceiver")
+__all__ = ("SQSSender", "SQSReceiver", "SNSSender")
 
 
 logger = logging.getLogger(__file__)
@@ -18,10 +18,7 @@ def build_attributes(**attrs):
     attributes = {}
     for key, value in attrs.items():
         if value is not None:
-            attributes[key] = {
-                "DataType": "String",
-                "StringValue": value,
-            }
+            attributes[key] = {"DataType": "String", "StringValue": value}
     return attributes
 
 
@@ -98,7 +95,7 @@ class SQSBase:
             await client.close()
 
 
-class MessageSender(SQSBase, bases.MessageSender):
+class SQSSender(SQSBase, bases.MessageSender):
     """
     AIO SQS message sender.
     """
@@ -112,8 +109,7 @@ class MessageSender(SQSBase, bases.MessageSender):
         Publish a raw message (message is raw bytes)
         """
         attributes = build_attributes(
-            ContentType=content_type,
-            ContentEncoding=content_type,
+            ContentType=content_type, ContentEncoding=content_type
         )
         response = await self._client.send_message(
             QueueUrl=self._queue_url, MessageBody=body, MessageAttributes=attributes
@@ -121,7 +117,7 @@ class MessageSender(SQSBase, bases.MessageSender):
         return response["MessageId"]
 
 
-class MessageReceiver(SQSBase, bases.MessageReceiver, bases.MessageSubscriber):
+class SQSReceiver(SQSBase, bases.MessageReceiver):
     """
     AIO SQS message receiver/subscriber
     """
@@ -150,7 +146,7 @@ class MessageReceiver(SQSBase, bases.MessageReceiver, bases.MessageSubscriber):
                         await self.receive(
                             msg["Body"],
                             attrs.get("ContentType"),
-                            attrs.get("ContentEncoding")
+                            attrs.get("ContentEncoding"),
                         )
                         await client.delete_message(
                             QueueUrl=queue_url, ReceiptHandle=msg["ReceiptHandle"]
@@ -170,10 +166,7 @@ class SNSBase:
     __slots__ = ("topic_arn", "aws_config", "client_args", "_client")
 
     def __init__(
-        self,
-        topic_arn: str,
-        aws_config: str = None,
-        client_args: Dict[str, Any] = None,
+        self, topic_arn: str, aws_config: str = None, client_args: Dict[str, Any] = None
     ):
         self.topic_arn = topic_arn
         self.aws_config = aws_config
@@ -198,21 +191,20 @@ class SNSBase:
             self._client = None
 
 
-class MessagePublisher(SNSBase, bases.MessagePublisher):
+class SNSSender(SNSBase, bases.MessageSender):
     """
     AIO SNS message publisher.
     """
 
     __slots__ = ()
 
-    async def publish_raw(self, body: bytes, *, content_type: str = None, content_encoding: str = None) -> str:
+    async def send_raw(
+        self, body: bytes, *, content_type: str = None, content_encoding: str = None
+    ) -> str:
         attributes = build_attributes(
-            ContentType=content_type,
-            ContentEncoding=content_type,
+            ContentType=content_type, ContentEncoding=content_type
         )
         response = self._client.publish(
-            TopicArn=self.topic_arn,
-            Message=body,
-            MessageAttributes=attributes,
+            TopicArn=self.topic_arn, Message=body, MessageAttributes=attributes
         )
         return response["MessageId"]
