@@ -1,10 +1,11 @@
+import asyncio
 import botocore.exceptions
 import logging
 
-from typing import Optional, Dict, Any
-
+from pyapp.injection import inject
 from pyapp_ext.messaging.asyncio import bases
 from pyapp_ext.messaging.exceptions import QueueNotFound
+from typing import Optional, Dict, Any
 
 from .factory import create_client
 
@@ -34,17 +35,21 @@ class SQSBase:
     Base Message Queue
     """
 
-    __slots__ = ("queue_name", "aws_config", "client_args", "_client", "_queue_url")
+    __slots__ = ("queue_name", "aws_config", "client_args", "_client", "_queue_url", "loop")
 
+    @inject
     def __init__(
         self,
+        *,
         queue_name: str,
         aws_config: str = None,
         client_args: Dict[str, Any] = None,
+        loop: asyncio.AbstractEventLoop = None
     ):
         self.queue_name = queue_name
         self.aws_config = aws_config
         self.client_args = client_args or {}
+        self.loop = loop
 
         self._client = None
         self._queue_url: Optional[str] = None
@@ -122,14 +127,18 @@ class SQSReceiver(SQSBase, bases.MessageReceiver):
     AIO SQS message receiver/subscriber
     """
 
-    __slots__ = ()
+    __slots__ = ("_listen_task",)
 
-    async def listen(self):
+    _listen_task: Optional[asyncio.Task]
+
+    async def _listener(self):
         """
-        Listen for messages.
+        Internal listener task
         """
         client = self._client
         queue_url = self._queue_url
+
+        logger.debug("Starting SQS Listener")
 
         while True:
             try:
@@ -161,6 +170,20 @@ class SQSReceiver(SQSBase, bases.MessageReceiver):
 
             except botocore.exceptions.ClientError:
                 raise
+
+    async def open(self):
+        """
+        Listen for messages.
+        """
+        await super().open()
+        self._listen_task = self.loop.create_task(self._listener())
+
+    async def close(self):
+        """
+        Stop listening for messages
+        """
+        self._listen_task.cancel()
+        await super().close()
 
 
 class SNSBase:
