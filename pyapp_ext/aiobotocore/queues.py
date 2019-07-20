@@ -141,7 +141,12 @@ class SQSReceiver(SQSBase, bases.MessageReceiver):
 
                 if "Messages" in response:
                     for msg in response["Messages"]:
-                        attrs = parse_attributes(msg["MessageAttributes"])
+                        try:
+                            raw_attrs = msg["MessageAttributes"]
+                        except KeyError:
+                            attrs = {}
+                        else:
+                            attrs = parse_attributes(raw_attrs)
 
                         await self.receive(
                             msg["Body"],
