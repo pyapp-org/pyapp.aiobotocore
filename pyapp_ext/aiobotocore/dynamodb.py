@@ -1,7 +1,65 @@
+import enum
 import uuid
 
 from datetime import datetime
 from typing import Tuple, Callable, Generic, Sequence, Set, Any, _GenericAlias
+
+
+class DynamoTypes(enum.Enum):
+    """
+    Types supported by DynamoDB
+    """
+    String = "S"
+    Bytes = "B"
+    Bool = "BOOL"
+    Number = "N"
+    List = "L"
+    Map = "M"
+    StringSet = "SS"
+    NumberSet = "NS"
+    BytesSet = "BS"
+
+
+class Attribute:
+    def __init__(self, name: str):
+        self.name = name
+
+    def to_python(self, value):
+        return value
+
+    def to_dynamo(self, value):
+        return value
+
+
+class StringAttribute(Attribute):
+    python_type = str
+    dynamo_type = DynamoTypes.String
+
+
+class BytesAttribute(Attribute):
+    python_type = bytes
+    dynamo_type = DynamoTypes.Bytes
+
+
+class BoolAttribute(Attribute):
+    python_type = bool
+    dynamo_type = DynamoTypes.Bool
+
+
+class NumberAttribute(Attribute):
+    dynamo_type = DynamoTypes.Number
+
+
+class IntegerAttribute(NumberAttribute):
+    python_type = int
+
+
+class FloatAttribute(NumberAttribute):
+    python_type = float
+
+    def to_python(self, value):
+        return float(value)
+
 
 BasicType = Tuple[str, Callable, Callable]
 
@@ -17,8 +75,10 @@ BASIC_TYPES: Sequence[Tuple[type, BasicType]] = (
     (uuid.UUID, ("S", str, uuid.UUID)),
     (datetime, ("N", datetime.timestamp, datetime.fromtimestamp)),
 )
+
 # Type supported as sets
 SET_TYPES = {"S", "B", "N"}
+
 # Mapping for None
 NONE_TYPE = "NULL"
 
@@ -45,3 +105,6 @@ def resolve_dynamo_type(obj: Any) -> BasicType:
 
     else:
         return _resolve_basic_type(obj)
+
+
+
