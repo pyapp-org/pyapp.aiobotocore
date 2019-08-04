@@ -1,6 +1,6 @@
 import abc
+import enum
 import uuid
-from abc import ABC
 
 from collections import OrderedDict
 from datetime import datetime
@@ -18,6 +18,64 @@ from typing import (
     Dict,
     Type,
 )
+
+
+class DynamoTypes(enum.Enum):
+    """
+    Types supported by DynamoDB
+    """
+
+    String = "S"
+    Bytes = "B"
+    Bool = "BOOL"
+    Number = "N"
+    List = "L"
+    Map = "M"
+    StringSet = "SS"
+    NumberSet = "NS"
+    BytesSet = "BS"
+
+
+class Attribute:
+    def __init__(self, name: str):
+        self.name = name
+
+    def to_python(self, value):
+        return value
+
+    def to_dynamo(self, value):
+        return value
+
+
+class StringAttribute(Attribute):
+    python_type = str
+    dynamo_type = DynamoTypes.String
+
+
+class BytesAttribute(Attribute):
+    python_type = bytes
+    dynamo_type = DynamoTypes.Bytes
+
+
+class BoolAttribute(Attribute):
+    python_type = bool
+    dynamo_type = DynamoTypes.Bool
+
+
+class NumberAttribute(Attribute):
+    dynamo_type = DynamoTypes.Number
+
+
+class IntegerAttribute(NumberAttribute):
+    python_type = int
+
+
+class FloatAttribute(NumberAttribute):
+    python_type = float
+
+    def to_python(self, value):
+        return float(value)
+
 
 BasicType = Tuple[str, Callable, Callable]
 VT_ = TypeVar("VT_", bytes, str, int, float, bool, datetime, set, list, dict)
@@ -88,7 +146,7 @@ class BooleanField(Field):
     python_type = bool
 
 
-class NumberField(Field, ABC):
+class NumberField(Field, abc.ABC):
     dynamo_type = "N"
 
     def prepare(self, value: VT_) -> Any:
@@ -108,7 +166,7 @@ class ListField(Field):
     python_type = list
 
 
-class SetField(Generic[ST_], Field[Set[ST_]], ABC):
+class SetField(Generic[ST_], Field[Set[ST_]], abc.ABC):
     python_type = set
     set_item_field: Field
 
