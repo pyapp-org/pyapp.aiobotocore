@@ -25,56 +25,15 @@ class DynamoTypes(enum.Enum):
     Types supported by DynamoDB
     """
 
+    Number = "N"
     String = "S"
     Bytes = "B"
     Bool = "BOOL"
-    Number = "N"
     List = "L"
     Map = "M"
-    StringSet = "SS"
     NumberSet = "NS"
+    StringSet = "SS"
     BytesSet = "BS"
-
-
-class Attribute:
-    def __init__(self, name: str):
-        self.name = name
-
-    def to_python(self, value):
-        return value
-
-    def to_dynamo(self, value):
-        return value
-
-
-class StringAttribute(Attribute):
-    python_type = str
-    dynamo_type = DynamoTypes.String
-
-
-class BytesAttribute(Attribute):
-    python_type = bytes
-    dynamo_type = DynamoTypes.Bytes
-
-
-class BoolAttribute(Attribute):
-    python_type = bool
-    dynamo_type = DynamoTypes.Bool
-
-
-class NumberAttribute(Attribute):
-    dynamo_type = DynamoTypes.Number
-
-
-class IntegerAttribute(NumberAttribute):
-    python_type = int
-
-
-class FloatAttribute(NumberAttribute):
-    python_type = float
-
-    def to_python(self, value):
-        return float(value)
 
 
 BasicType = Tuple[str, Callable, Callable]
@@ -82,33 +41,36 @@ VT_ = TypeVar("VT_", bytes, str, int, float, bool, datetime, set, list, dict)
 ST_ = TypeVar("ST_", bytes, str, int, float)
 
 
-class Field(Generic[VT_], abc.ABC):
+class Attribute(Generic[VT_], abc.ABC):
     """
-    Base field.
+    A generic attribute.
     """
+    python_type: Type[VT_]
+    dynamo_type: DynamoTypes
 
-    dynamo_type: str
-    python_type: Type
-
-    def __init__(self, name: str = None):
+    def __init__(self, name: str):
         self.name = name
         self.attr_name: Optional[str] = None
 
-    def set_attributes_from_name(self, name: str):
+    def set_attrs_from_name(self, name: str):
         self.attr_name = name
         self.name = self.name or name
 
     def add_to_table(self, name: str, klass):
-        self.set_attributes_from_name(name)
+        self.set_attrs_from_name(name)
         klass.__fields__.append(self)
 
     @abc.abstractmethod
     def to_python(self, value: Any) -> Optional[VT_]:
-        pass
+        """
+        Convert incoming value into Python
+        """
 
     @abc.abstractmethod
-    def prepare(self, value: Optional[VT_]) -> Any:
-        pass
+    def prepare(self, value: VT_) -> Any:
+        """
+        Prepare a value for sending to Dynamo
+        """
 
     def to_dynamo(self, value: Optional[VT_]) -> Dict[str, Any]:
         """
@@ -116,49 +78,87 @@ class Field(Generic[VT_], abc.ABC):
         """
         if value is None:
             return {"NULL": True}
-        return {self.dynamo_type: self.prepare(value)}
+        return {self.dynamo_type.value: self.prepare(value)}
 
 
-class BytesField(Field[bytes]):
-    dynamo_type = "B"
-    python_type = bytes
+class TableMeta(type):
+    """
+    Meta class to automate the creation of Table classes.
+    """
 
-    def to_python(self, value: Any) -> bytes:
-        pass
+    @classmethod
+    def __prepare__(mcs, name, bases):
+        return OrderedDict()
 
-    def prepare(self, value: Optional[bytes]) -> Any:
-        pass
+    def __new__(mcs, class_name, bases, attrs, name: str = None):
+        super_new = super().__new__
+        new_attrs = {k: v for k, v in attrs.items() if k.startswith("__")}
+        annotations = attrs.get("__annotations__", {})
+
+        # Determine the name of the table
+        new_attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
+        new_attrs["__attributes__"] = []
+
+        # Identify attributes that are fields
+        attributes = []
+        for name, value in attrs.items():
+            if name in new_attrs:
+                pass
+            elif isinstance(value, Options):
+                attributes.append((name, value))
+            elif name in annotations:
+                attributes.append((name, Options(default=value)))
+            else:
+                # Just a normal function or variable
+                new_attrs[name] = value
+
+        klass = super_new(mcs, class_name, bases, new_attrs)
+
+        # Append to parent class (via options)
+        for name, value in attributes:
+            value.add_to_table(name, annotations.get(name), klass)
+
+        return klass
 
 
-class StringField(Field[str]):
-    dynamo_type = "S"
-    python_type = str
+class NumberAttribute(Attribute[VT_], abc.ABC):
+    dynamo_type = DynamoTypes.Number
 
-    def to_python(self, value: Any) -> str:
-        pass
+    def to_python(self, value: Any) -> VT_:
+        return self.python_type(value)
 
-    def prepare(self, value: Optional[str]) -> Any:
-        pass
-
-
-class BooleanField(Field):
-    dynamo_type = "BOOL"
-    python_type = bool
-
-
-class NumberField(Field, abc.ABC):
-    dynamo_type = "N"
-
-    def prepare(self, value: VT_) -> Any:
+    def prepare(self, value: VT_) -> str:
         return str(value)
 
 
-class IntegerField(NumberField):
+class IntegerAttribute(NumberAttribute[int]):
     python_type = int
 
 
-class FloatField(NumberField):
+class FloatAttribute(NumberAttribute[float]):
     python_type = float
+
+
+class StringAttribute(Attribute[str]):
+    python_type = str
+    dynamo_type = DynamoTypes.String
+
+    def to_python(self, value: Any) -> str:
+        return self.python_type(value)
+
+    def prepare(self, value: str) -> str:
+        return value
+
+
+class BoolAttribute(Attribute[bool]):
+    python_type = bool
+    dynamo_type = DynamoTypes.Bool
+
+    def to_python(self, value: bool) -> bool:
+        return value
+
+    def prepare(self, value: str) -> str:
+        return value
 
 
 class ListField(Field):
