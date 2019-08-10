@@ -17,12 +17,21 @@ from typing import (
     TypeVar,
     Dict,
     Type,
+    ClassVar,
 )
 
 
-class DynamoTypes(enum.Enum):
+class NoDefaultType:
+    def __repr__(self):
+        return "<NoDefault>"
+
+
+NoDefault = NoDefaultType()
+
+
+class DataType(enum.Enum):
     """
-    Types supported by DynamoDB
+    Data types supported by DynamoDB
     """
 
     Number = "N"
@@ -36,6 +45,69 @@ class DynamoTypes(enum.Enum):
     BytesSet = "BS"
 
 
+class KeyType(enum.Enum):
+    """
+    Key types supported by DynamoDB
+    """
+
+    Hash = "HASH"
+    Range = "RANGE"
+
+
+VT_ = TypeVar("VT_")
+
+
+class Attribute(Generic[VT_]):
+    """
+    A generic attribute
+    """
+
+    python_type: Type
+    dynamo_type: DataType
+
+    def __init__(
+        self,
+        name: str = None,
+        *,
+        key_type: KeyType = None,
+        attr_name: str = None,
+        default: VT_ = NoDefault,
+    ):
+        self.name = name
+        self.key_type = key_type
+        self.attr_name = attr_name
+        self.default = default
+
+    def set_attrs_from_name(self, attr_name: str):
+        """
+        Apply the attribute name to Attribute instance
+        """
+        self.attr_name = attr_name
+        self.name = self.name or attr_name
+
+    def add_to_table(self, attr_name: str, klass: "Table"):
+        """
+        Called by the table meta class to apply name to object
+        """
+        self.set_attrs_from_name(attr_name)
+        klass.__FIELDS__.append(self)
+
+    @property
+    def key_schema(self) -> Optional[Dict[str, str]]:
+        """
+        KeySchema entry for this attribute; returns `None` if this is not a key attribute
+        """
+        if self.key_type:
+            return {"AttributeName": self.name, "KeyType": self.key_type.value}
+
+    @property
+    def attribute_def(self) -> Dict[str, str]:
+        """
+        AttributeDefinition entry for this attribute.
+        """
+        return {"AttributeName": self.name, "AttributeType": self.dynamo_type.value}
+
+
 BasicType = Tuple[str, Callable, Callable]
 VT_ = TypeVar("VT_", bytes, str, int, float, bool, datetime, set, list, dict)
 ST_ = TypeVar("ST_", bytes, str, int, float)
@@ -45,6 +117,7 @@ class Attribute(Generic[VT_], abc.ABC):
     """
     A generic attribute.
     """
+
     python_type: Type[VT_]
     dynamo_type: DynamoTypes
 
