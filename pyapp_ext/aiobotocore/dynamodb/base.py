@@ -18,16 +18,16 @@ class DataType(Enum):
 
     Number = "N"
     String = "S"
-    Bytes = "B"
+    Binary = "B"
     Bool = "BOOL"
     List = "L"
     Map = "M"
     NumberSet = "NS"
     StringSet = "SS"
-    BytesSet = "BS"
+    BinarySet = "BS"
 
 
-IndexDataTypes = (DataType.Number, DataType.String, DataType.Bytes)
+IndexDataTypes = (DataType.Number, DataType.String, DataType.Binary)
 
 
 class KeyType(Enum):
@@ -43,6 +43,7 @@ class BillingMode(Enum):
     """
     Billing mode
     """
+
     Provisioned = "PROVISIONED"
     PayPerRequest = "PAY_PER_REQUEST"
 
@@ -65,13 +66,13 @@ class Attribute(Generic[VT_]):
         key_type: KeyType = None,
         attr_name: str = None,
         default: VT_ = NoDefault,
-        validators: Sequence[Callable[[VT_], None]]
+        validators: Sequence[Callable[[VT_], None]] = None,
     ):
         self.name = name
         self.key_type = key_type
         self.attr_name = attr_name
         self.default = default
-        self.validators = validators
+        self.validators = validators or []
 
         # Ensure only data types that can be indexed are used if
         # an this attribute is a key field.
