@@ -1,10 +1,10 @@
-from typing import List, Set, Any
-
-import datetime
-import uuid
-import yarl
+from datetime import datetime
+from typing import List, Set, Any, Optional
+from uuid import UUID
+from yarl import URL
 
 from .base import Attribute, DataType
+from .exceptions import ValidationError
 
 
 class StringAttribute(Attribute[str]):
@@ -13,6 +13,11 @@ class StringAttribute(Attribute[str]):
     """
 
     dynamo_type = DataType.String
+
+    def clean_value(self, value: Any) -> Optional[str]:
+        if value is None or isinstance(value, str):
+            return value
+        return str(value)
 
     def prepare(self, value: str) -> str:
         return str(value)
@@ -36,6 +41,14 @@ class IntegerAttribute(Attribute[int]):
 
     dynamo_type = DataType.Number
 
+    def clean_value(self, value: Any) -> Optional[int]:
+        if value is None or isinstance(value, int):
+            return value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ValidationError("Invalid integer")
+
     def prepare(self, value: int) -> str:
         return str(value)
 
@@ -46,6 +59,14 @@ class FloatAttribute(Attribute[float]):
     """
 
     dynamo_type = DataType.Number
+
+    def clean_value(self, value: Any) -> Optional[float]:
+        if value is None or isinstance(value, float):
+            return value
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            raise ValidationError("Invalid float")
 
     def prepare(self, value: float) -> str:
         return str(value)
@@ -58,37 +79,75 @@ class BooleanAttribute(Attribute[bool]):
 
     dynamo_type = DataType.Bool
 
+    def clean_value(self, value: Any) -> Optional[float]:
+        if value is None:
+            return None
 
-class DateTimeAttribute(Attribute[datetime.datetime]):
+        if value in (True, False):
+            # if value is 1 or 0 then it's equal to True or False, but we want
+            # to return a true bool for semantic reasons.
+            return bool(value)
+
+        raise ValidationError("Invalid bool")
+
+
+class DateTimeAttribute(Attribute[datetime]):
     """
     Date/Time attribute
     """
 
     dynamo_type = DataType.String
 
-    def prepare(self, value: datetime.datetime) -> str:
+    def clean_value(self, value: Any) -> Optional[datetime]:
+        if value is None or isinstance(value, datetime):
+            return value
+
+        try:
+            return datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            raise ValidationError("Invalid date-time")
+
+    def prepare(self, value: datetime) -> str:
         return value.isoformat()
 
 
-class UUIDAttribute(Attribute[uuid.UUID]):
+class UUIDAttribute(Attribute[UUID]):
     """
     UUID attribute
     """
 
     dynamo_type = DataType.String
 
-    def prepare(self, value: uuid.UUID) -> str:
+    def clean_value(self, value: Any) -> Optional[UUID]:
+        if value is None or isinstance(value, UUID):
+            return value
+
+        try:
+            return UUID(value)
+        except (TypeError, ValueError):
+            raise ValidationError("Invalid UUID")
+
+    def prepare(self, value: UUID) -> str:
         return str(value)
 
 
-class URLAttribute(Attribute[yarl.URL]):
+class URLAttribute(Attribute[URL]):
     """
     URL attribute
     """
 
     dynamo_type = DataType.String
 
-    def prepare(self, value: yarl.URL) -> str:
+    def clean_value(self, value: Any) -> Optional[URL]:
+        if value is None or isinstance(value, URL):
+            return value
+
+        try:
+            return URL(value)
+        except (TypeError, ValueError):
+            raise ValidationError("Invalid URL")
+
+    def prepare(self, value: URL) -> str:
         return str(value)
 
 
@@ -98,6 +157,16 @@ class StringSetAttribute(StringAttribute):
     """
 
     dynamo_type = DataType.StringSet
+
+    def clean_value(self, value: Any) -> Optional[set]:
+        if value is None:
+            return set()
+
+        if isinstance(value, set):
+            # TODO: Validate items
+            return value
+
+        raise ValidationError("Not a set")
 
     def prepare(self, value: Set[str]) -> List[str]:
         super_prepare = super().prepare
@@ -111,6 +180,16 @@ class BinarySetAttribute(BinaryAttribute):
 
     dynamo_type = DataType.BinarySet
 
+    def clean_value(self, value: Any) -> Optional[set]:
+        if value is None:
+            return set()
+
+        if isinstance(value, set):
+            # TODO: Validate items
+            return value
+
+        raise ValidationError("Not a set")
+
     def prepare(self, value: Set[bytes]) -> List[str]:
         super_prepare = super().prepare
         return list(super_prepare(v) for v in value)
@@ -123,6 +202,16 @@ class IntegerSetAttribute(IntegerAttribute):
 
     dynamo_type = DataType.NumberSet
 
+    def clean_value(self, value: Any) -> Optional[set]:
+        if value is None:
+            return set()
+
+        if isinstance(value, set):
+            # TODO: Validate items
+            return value
+
+        raise ValidationError("Not a set")
+
     def prepare(self, value: Set[int]) -> List[str]:
         super_prepare = super().prepare
         return list(super_prepare(v) for v in value)
@@ -134,6 +223,16 @@ class FloatSetAttribute(FloatAttribute):
     """
 
     dynamo_type = DataType.NumberSet
+
+    def clean_value(self, value: Any) -> Optional[set]:
+        if value is None:
+            return set()
+
+        if isinstance(value, set):
+            # TODO: Validate items
+            return value
+
+        raise ValidationError("Not a set")
 
     def prepare(self, value: Set[float]) -> List[str]:
         super_prepare = super().prepare
@@ -151,6 +250,16 @@ class ListAttribute(Attribute):
         super().__init__(name, **kwargs)
         self.containing_attribute = containing_attribute
 
+    def clean_value(self, value: Any) -> Optional[list]:
+        if value is None:
+            return []
+
+        if isinstance(value, list):
+            # TODO: Validate items
+            return value
+
+        raise ValidationError("Not a list")
+
     def prepare(self, value: List[Any]) -> List[Any]:
         containing_prepare = self.containing_attribute.prepare
         return list(containing_prepare(v) for v in value)
@@ -162,9 +271,9 @@ SIMPLE_TYPES = {
     bool: BooleanAttribute,
     int: IntegerAttribute,
     float: FloatAttribute,
-    datetime.datetime: DateTimeAttribute,
-    uuid.UUID: UUIDAttribute,
-    yarl.URL: URLAttribute,
+    datetime: DateTimeAttribute,
+    UUID: UUIDAttribute,
+    URL: URLAttribute,
 }
 
 SET_TYPES = {

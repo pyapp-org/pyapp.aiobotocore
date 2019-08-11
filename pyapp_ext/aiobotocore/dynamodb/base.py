@@ -2,6 +2,8 @@ from collections import OrderedDict
 from enum import Enum
 from typing import TypeVar, Generic, Type, Optional, Dict, Any, Sequence, Callable
 
+from .exceptions import ValidationError
+
 
 class NoDefaultType:
     def __repr__(self):
@@ -63,12 +65,14 @@ class Attribute(Generic[VT_]):
         self,
         name: str = None,
         *,
+        null: bool = False,
         key_type: KeyType = None,
         attr_name: str = None,
         default: VT_ = NoDefault,
         validators: Sequence[Callable[[VT_], None]] = None,
     ):
         self.name = name
+        self.null = null
         self.key_type = key_type
         self.attr_name = attr_name
         self.default = default
@@ -108,6 +112,42 @@ class Attribute(Generic[VT_]):
         """
         return {"AttributeName": self.name, "AttributeType": self.dynamo_type.value}
 
+    def clean_value(self, value: Any) -> Optional[VT_]:
+        """
+        Clean actual value.
+        """
+
+    def validate(self, value: Optional[VT_]):
+        """
+        Execute all validators
+        """
+        if not self.null and value is None:
+            raise ValidationError("A value is required.")
+
+    def run_validators(self, value: Optional[VT_]):
+        """
+        Run validators and collect results
+        """
+        errors = []
+        for validator in self.validators:
+            try:
+                validator(value)
+            except ValidationError as ex:
+                errors.extend(ex.messages)
+        if errors:
+            raise ValidationError(errors)
+
+    def clean(self, value: Any) -> Optional[VT_]:
+        """
+        Convert the value's type and run validation. Validation errors
+        from to_python and validate are propagated. The correct value is
+        returned if no error is raised.
+        """
+        value = self.clean_value(value)
+        self.validate(value)
+        self.run_validators(value)
+        return value
+
     def prepare(self, value: VT_) -> VT_:
         """
         Prepare an item
@@ -122,6 +162,18 @@ class Attribute(Generic[VT_]):
             return {"NULL": True}
         else:
             return {self.dynamo_type.value: self.prepare(value)}
+
+    def get_attr(self, obj) -> Any:
+        """
+        Get attribute from an object
+        """
+        return getattr(obj, self.attr_name)
+
+    def set_attr(self, obj, value: VT_):
+        """
+        Set attribute on an object
+        """
+        setattr(obj, self.attr_name, value)
 
 
 class TableMeta(type):

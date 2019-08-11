@@ -33,14 +33,22 @@ Example::
     item = asitem(my_table)
 
 """
-from dataclasses import MISSING, Field, asdict, fields, is_dataclass, _process_class
+from dataclasses import MISSING, Field, fields, is_dataclass, _process_class
 from functools import partial
 from typing import List, Callable, Any, Tuple, Dict, _GenericAlias
 
 from .base import KeyType, Attribute, BillingMode, DataType
+from .exceptions import DynamoDBError
 from .attributes import SIMPLE_TYPES, SET_TYPES, ListAttribute
 
-__all__ = ("table", "attribute", "attributes", "table_description", "asitem")
+__all__ = (
+    "table",
+    "asitem",
+    "attribute",
+    "attributes",
+    "UnsupportedType",
+    "table_description",
+)
 
 DYNAMO_DB_ARGS_KEY = "_dynamo_db"
 
@@ -64,15 +72,10 @@ def table(
     def wrap(cls):
         klass = _process_class(cls, init, repr, eq, order, unsafe_hash, frozen)
         klass.__table_name__ = name or cls.__name__
+        klass.__attributes__ = tuple(_field_to_attribute(f) for f in fields(cls))
         return klass
 
-    # See if we're being called as @dataclass or @dataclass().
-    if _cls is None:
-        # We're called with parens.
-        return wrap
-
-    # We're called as @dataclass without parens.
-    return wrap(_cls)
+    return wrap if _cls is None else wrap(_cls)
 
 
 def attribute(
@@ -122,11 +125,15 @@ class DataclassAttribute(Attribute):
         return asitem(value)
 
 
+class UnsupportedType(TypeError, DynamoDBError):
+    """
+    Type is not supported.
+    """
+
+
 def _type_to_attribute(type_: type):
     """
     Map a type back to an attribute instance
-    :param type_:
-    :return:
     """
     try:
         return SIMPLE_TYPES[type_]
@@ -150,9 +157,11 @@ def _type_to_attribute(type_: type):
             try:
                 return SET_TYPES[contained_type]
             except KeyError:
-                raise TypeError(f"Set type {contained_type!r} not supported") from None
+                raise UnsupportedType(
+                    f"Set type {contained_type!r} not supported"
+                ) from None
 
-    raise TypeError(f"Type {type_!r} not supported")
+    raise UnsupportedType(f"Type {type_!r} not supported")
 
 
 def _field_to_attribute(field: Field) -> Attribute:
@@ -176,7 +185,7 @@ def attributes(class_or_instance) -> Tuple[Attribute]:
     sub-type Attribute.
     """
     try:
-        return getattr(class_or_instance, "_ATTRIBUTES")
+        return getattr(class_or_instance, "__attributes__")
     except AttributeError:
         pass  # Ignore as we will now populate this value.
 
@@ -187,7 +196,7 @@ def attributes(class_or_instance) -> Tuple[Attribute]:
         if isinstance(class_or_instance, type)
         else type(class_or_instance)
     )
-    setattr(klass, "_ATTRIBUTES", attrs)
+    setattr(klass, "__attributes__", attrs)
     return attrs
 
 
@@ -227,7 +236,7 @@ def table_description(
     return schema
 
 
-def asitem(obj) -> Dict[str, Any]:
+def asitem(obj, clean: bool = True) -> Dict[str, Any]:
     """
     Convert a dataclass into a DynamoDB item.
     """
