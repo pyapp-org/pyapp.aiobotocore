@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Set, Any, Optional
+from typing import List, Set, Any, Optional, Dict
 from uuid import UUID
 from yarl import URL
 
@@ -15,7 +15,7 @@ class StringAttribute(Attribute[str]):
 
     dynamo_type = DataType.String
 
-    def clean_value(self, value: Any) -> Optional[str]:
+    async def clean_value(self, value: Any) -> Optional[str]:
         if value is None or isinstance(value, str):
             return value
         return str(value)
@@ -42,7 +42,7 @@ class IntegerAttribute(Attribute[int]):
 
     dynamo_type = DataType.Number
 
-    def clean_value(self, value: Any) -> Optional[int]:
+    async def clean_value(self, value: Any) -> Optional[int]:
         if value is None or isinstance(value, int):
             return value
         try:
@@ -61,7 +61,7 @@ class FloatAttribute(Attribute[float]):
 
     dynamo_type = DataType.Number
 
-    def clean_value(self, value: Any) -> Optional[float]:
+    async def clean_value(self, value: Any) -> Optional[float]:
         if value is None or isinstance(value, float):
             return value
         try:
@@ -80,7 +80,7 @@ class BooleanAttribute(Attribute[bool]):
 
     dynamo_type = DataType.Bool
 
-    def clean_value(self, value: Any) -> Optional[float]:
+    async def clean_value(self, value: Any) -> Optional[float]:
         if value is None:
             return None
 
@@ -99,7 +99,7 @@ class DateTimeAttribute(Attribute[datetime]):
 
     dynamo_type = DataType.String
 
-    def clean_value(self, value: Any) -> Optional[datetime]:
+    async def clean_value(self, value: Any) -> Optional[datetime]:
         if value is None or isinstance(value, datetime):
             return value
 
@@ -119,7 +119,7 @@ class UUIDAttribute(Attribute[UUID]):
 
     dynamo_type = DataType.String
 
-    def clean_value(self, value: Any) -> Optional[UUID]:
+    async def clean_value(self, value: Any) -> Optional[UUID]:
         if value is None or isinstance(value, UUID):
             return value
 
@@ -139,7 +139,7 @@ class URLAttribute(Attribute[URL]):
 
     dynamo_type = DataType.String
 
-    def clean_value(self, value: Any) -> Optional[URL]:
+    async def clean_value(self, value: Any) -> Optional[URL]:
         if value is None or isinstance(value, URL):
             return value
 
@@ -159,7 +159,7 @@ class StringSetAttribute(StringAttribute):
 
     dynamo_type = DataType.StringSet
 
-    def clean_value(self, value: Any) -> Optional[set]:
+    async def clean_value(self, value: Any) -> Optional[set]:
         if value is None:
             return set()
 
@@ -181,7 +181,7 @@ class BinarySetAttribute(BinaryAttribute):
 
     dynamo_type = DataType.BinarySet
 
-    def clean_value(self, value: Any) -> Optional[set]:
+    async def clean_value(self, value: Any) -> Optional[set]:
         if value is None:
             return set()
 
@@ -203,7 +203,7 @@ class IntegerSetAttribute(IntegerAttribute):
 
     dynamo_type = DataType.NumberSet
 
-    def clean_value(self, value: Any) -> Optional[set]:
+    async def clean_value(self, value: Any) -> Optional[set]:
         if value is None:
             return set()
 
@@ -225,7 +225,7 @@ class FloatSetAttribute(FloatAttribute):
 
     dynamo_type = DataType.NumberSet
 
-    def clean_value(self, value: Any) -> Optional[set]:
+    async def clean_value(self, value: Any) -> Optional[set]:
         if value is None:
             return set()
 
@@ -251,7 +251,7 @@ class ListAttribute(Attribute):
         super().__init__(name, **kwargs)
         self.containing_attribute = containing_attribute
 
-    def clean_value(self, value: Any) -> Optional[list]:
+    async def clean_value(self, value: Any) -> Optional[list]:
         if value is None:
             return []
 
@@ -259,7 +259,7 @@ class ListAttribute(Attribute):
             errors = {}
             for idx, item in enumerate(value):
                 try:
-                    clean(item)
+                    await clean(item)
                 except ValidationError as ex:
                     errors[idx] = ex.error_messages
             if errors:
@@ -267,6 +267,21 @@ class ListAttribute(Attribute):
             return value
 
         raise ValidationError("Not a list")
+
+    def from_dynamo(self, item: Dict[str, Any]):
+        """
+        Convert an item back into a value from DynamoDB
+        """
+        if "NULL" in item:
+            return
+
+        try:
+            values = item[self.dynamo_type.value]
+        except KeyError:
+            raise RuntimeWarning()
+
+        for value in values:
+            self.clean_value(value)
 
     def prepare(self, value: List[Any]) -> List[Any]:
         containing_prepare = self.containing_attribute.prepare

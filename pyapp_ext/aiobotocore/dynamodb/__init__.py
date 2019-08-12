@@ -1,3 +1,7 @@
+"""
+A simple DynamoDB orm
+"""
+
 from .attributes import (
     StringAttribute,
     BinaryAttribute,

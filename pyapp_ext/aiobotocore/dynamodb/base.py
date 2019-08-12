@@ -69,19 +69,46 @@ class Attribute(Generic[VT_]):
         key_type: KeyType = None,
         attr_name: str = None,
         default: VT_ = NoDefault,
+        default_factory: Callable[[], VT_] = NoDefault,
         validators: Sequence[Callable[[VT_], None]] = None,
     ):
         self.name = name
         self.null = null
         self.key_type = key_type
         self.attr_name = attr_name
-        self.default = default
         self.validators = validators or []
 
         # Ensure only data types that can be indexed are used if
         # an this attribute is a key field.
         if key_type and self.dynamo_type not in IndexDataTypes:
-            raise RuntimeError(f"Only {IndexDataTypes} types can be indexed")
+            raise ValueError(f"Only {IndexDataTypes} types can be indexed")
+
+        # Determine correct default
+        if default is NoDefault and default_factory is NoDefault:
+            self.default_factory = None
+        elif default is NoDefault:
+            self.default_factory = default_factory
+        elif default_factory is NoDefault:
+            self.default_factory = lambda: default
+        else:
+            raise ValueError("cannot specify both default and default_factory")
+
+    def __get__(self, instance, owner):
+        if instance:
+            try:
+                return instance.__dict__[self.attr_name]
+            except KeyError:
+                if self.default_factory:
+                    return self.default_factory()
+        else:
+            return self
+
+    def __set__(self, instance, value):
+        instance.__dict__[self.attr_name] = value
+
+    def __set_name__(self, owner: "Table", name: str):
+        self.set_attrs_from_name(name)
+        owner.__attributes__.append(self)
 
     def set_attrs_from_name(self, attr_name: str):
         """
@@ -89,13 +116,13 @@ class Attribute(Generic[VT_]):
         """
         self.attr_name = attr_name
         self.name = self.name or attr_name
-
-    def add_to_table(self, attr_name: str, klass: "Table"):
-        """
-        Called by the table meta class to apply name to object
-        """
-        self.set_attrs_from_name(attr_name)
-        klass.__attributes__.append(self)
+    #
+    # def add_to_table(self, attr_name: str, klass: "Table"):
+    #     """
+    #     Called by the table meta class to apply name to object
+    #     """
+    #     self.set_attrs_from_name(attr_name)
+    #     klass.__attributes__.append(self)
 
     @property
     def key_schema(self) -> Optional[Dict[str, str]]:
@@ -112,7 +139,7 @@ class Attribute(Generic[VT_]):
         """
         return {"AttributeName": self.name, "AttributeType": self.dynamo_type.value}
 
-    def clean_value(self, value: Any) -> Optional[VT_]:
+    async def clean_value(self, value: Any) -> Optional[VT_]:
         """
         Clean actual value.
         """
@@ -124,28 +151,28 @@ class Attribute(Generic[VT_]):
         if not self.null and value is None:
             raise ValidationError("A value is required.")
 
-    def run_validators(self, value: Optional[VT_]):
+    async def run_validators(self, value: Optional[VT_]):
         """
         Run validators and collect results
         """
         errors = []
         for validator in self.validators:
             try:
-                validator(value)
+                await validator(value)
             except ValidationError as ex:
                 errors.extend(ex.messages)
         if errors:
             raise ValidationError(errors)
 
-    def clean(self, value: Any) -> Optional[VT_]:
+    async def clean(self, value: Any) -> Optional[VT_]:
         """
         Convert the value's type and run validation. Validation errors
         from to_python and validate are propagated. The correct value is
         returned if no error is raised.
         """
-        value = self.clean_value(value)
+        value = await self.clean_value(value)
         self.validate(value)
-        self.run_validators(value)
+        await self.run_validators(value)
         return value
 
     def prepare(self, value: VT_) -> VT_:
@@ -162,6 +189,20 @@ class Attribute(Generic[VT_]):
             return {"NULL": True}
         else:
             return {self.dynamo_type.value: self.prepare(value)}
+
+    def from_dynamo(self, item: Dict[str, Any]):
+        """
+        Convert an item back into a value from DynamoDB
+        """
+        if "NULL" in item:
+            return
+
+        try:
+            value = item[self.dynamo_type.value]
+        except KeyError:
+            raise RuntimeWarning()
+        else:
+            return self.clean_value(value)
 
     def get_attr(self, obj) -> Any:
         """
@@ -187,31 +228,34 @@ class TableMeta(type):
 
     def __new__(mcs, class_name, bases, attrs, name: str = None):
         super_new = super().__new__
-        new_attrs = {k: v for k, v in attrs.items() if k.startswith("__")}
-        annotations = attrs.get("__annotations__", {})
+        attrs["__attributes__"] = []
+        attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
 
-        # Determine the name of the table
-        new_attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
-        new_attrs["__attributes__"] = []
+        # new_attrs = {k: v for k, v in attrs.items() if k.startswith("__")}
+        # annotations = attrs.get("__annotations__", {})
 
-        # Identify attributes that are fields
-        attributes = []
-        for name, value in attrs.items():
-            if name in new_attrs:
-                pass
-            elif isinstance(value, Attribute):
-                attributes.append((name, value))
-            elif name in annotations:
-                attributes.append((name, Attribute(default=value)))
-            else:
-                # Just a normal function or variable
-                new_attrs[name] = value
+        # # Determine the name of the table
+        # new_attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
+        # new_attrs["__attributes__"] = []
+        #
+        # # Identify attributes that are fields
+        # attributes = []
+        # for name, value in attrs.items():
+        #     if name in new_attrs:
+        #         pass
+        #     elif isinstance(value, Attribute):
+        #         attributes.append((name, value))
+        #     elif name in annotations:
+        #         attributes.append((name, Attribute(default=value)))
+        #     else:
+        #         # Just a normal function or variable
+        #         new_attrs[name] = value
 
-        klass = super_new(mcs, class_name, bases, new_attrs)
+        klass = super_new(mcs, class_name, bases, attrs)
 
-        # Append to parent class (via options)
-        for name, value in attributes:
-            value.add_to_table(name, annotations.get(name), klass)
+        # # Append to parent class (via options)
+        # for name, value in attributes:
+        #     value.add_to_table(name, annotations.get(name), klass)
 
         return klass
 

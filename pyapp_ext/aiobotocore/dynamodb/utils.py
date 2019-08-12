@@ -14,7 +14,7 @@ def get_attributes(obj) -> Sequence[Attribute]:
         raise NotATable(f"Object {type(obj)!r} does not have attributes.") from None
 
 
-def clean(obj):
+async def clean(obj):
     """
     Clean a Table (or Table like) instance
     """
@@ -25,7 +25,7 @@ def clean(obj):
     for attribute in attributes:
         value = attribute.get_attr(obj)
         try:
-            value = attribute.clean(value)
+            value = await attribute.clean(value)
         except ValidationError as ex:
             errors[attribute.attr_name] = ex.error_messages
         else:

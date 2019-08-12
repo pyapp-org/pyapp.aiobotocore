@@ -35,7 +35,7 @@ Example::
 """
 from dataclasses import MISSING, Field, fields, is_dataclass, _process_class
 from functools import partial
-from typing import List, Callable, Any, Tuple, Dict, _GenericAlias
+from typing import List, Callable, Any, Tuple, Dict, _GenericAlias, Type
 
 from .base import KeyType, Attribute, BillingMode, DataType
 from .exceptions import DynamoDBError
@@ -44,6 +44,7 @@ from .attributes import SIMPLE_TYPES, SET_TYPES, ListAttribute
 __all__ = (
     "table",
     "asitem",
+    "fromitem",
     "attribute",
     "attributes",
     "UnsupportedType",
@@ -236,8 +237,16 @@ def table_description(
     return schema
 
 
-def asitem(obj, clean: bool = True) -> Dict[str, Any]:
+def asitem(obj) -> Dict[str, Any]:
     """
     Convert a dataclass into a DynamoDB item.
     """
     return {a.name: a.to_dynamo(getattr(obj, a.name)) for a in attributes(obj)}
+
+
+async def fromitem(klass: Type, data: Dict[str, Any]):
+    """
+    Convert DynamoDB item into a dataclass.
+    """
+    values = {a.attr_name: await a.from_dynamo(data.get(a.name)) for a in attributes(klass)}
+    return klass(**values)
