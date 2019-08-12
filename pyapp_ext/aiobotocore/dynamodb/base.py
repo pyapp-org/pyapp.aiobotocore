@@ -106,7 +106,7 @@ class Attribute(Generic[VT_]):
     def __set__(self, instance, value):
         instance.__dict__[self.attr_name] = value
 
-    def __set_name__(self, owner: "Table", name: str):
+    def __set_name__(self, owner: Type["Table"], name: str):
         self.set_attrs_from_name(name)
         owner.__attributes__.append(self)
 
@@ -230,34 +230,7 @@ class TableMeta(type):
         super_new = super().__new__
         attrs["__attributes__"] = []
         attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
-
-        # new_attrs = {k: v for k, v in attrs.items() if k.startswith("__")}
-        # annotations = attrs.get("__annotations__", {})
-
-        # # Determine the name of the table
-        # new_attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
-        # new_attrs["__attributes__"] = []
-        #
-        # # Identify attributes that are fields
-        # attributes = []
-        # for name, value in attrs.items():
-        #     if name in new_attrs:
-        #         pass
-        #     elif isinstance(value, Attribute):
-        #         attributes.append((name, value))
-        #     elif name in annotations:
-        #         attributes.append((name, Attribute(default=value)))
-        #     else:
-        #         # Just a normal function or variable
-        #         new_attrs[name] = value
-
-        klass = super_new(mcs, class_name, bases, attrs)
-
-        # # Append to parent class (via options)
-        # for name, value in attributes:
-        #     value.add_to_table(name, annotations.get(name), klass)
-
-        return klass
+        return super_new(mcs, class_name, bases, attrs)
 
 
 class Table(metaclass=TableMeta):
