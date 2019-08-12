@@ -23,3 +23,10 @@ class ValidationError(DynamoDBError):
 
         else:
             self.messages = [message]
+
+    @property
+    def error_messages(self):
+        if hasattr(self, 'message_dict'):
+            return self.message_dict
+        else:
+            return self.messages

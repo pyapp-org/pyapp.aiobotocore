@@ -5,6 +5,7 @@ from yarl import URL
 
 from .base import Attribute, DataType
 from .exceptions import ValidationError
+from .utils import clean
 
 
 class StringAttribute(Attribute[str]):
@@ -255,7 +256,14 @@ class ListAttribute(Attribute):
             return []
 
         if isinstance(value, list):
-            # TODO: Validate items
+            errors = {}
+            for idx, item in enumerate(value):
+                try:
+                    clean(item)
+                except ValidationError as ex:
+                    errors[idx] = ex.error_messages
+            if errors:
+                raise ValidationError(errors)
             return value
 
         raise ValidationError("Not a list")

@@ -27,7 +27,7 @@ def clean(obj):
         try:
             value = attribute.clean(value)
         except ValidationError as ex:
-            errors[attribute.attr_name] = ex.messages
+            errors[attribute.attr_name] = ex.error_messages
         else:
             attribute.set_attr(obj, value)
 
