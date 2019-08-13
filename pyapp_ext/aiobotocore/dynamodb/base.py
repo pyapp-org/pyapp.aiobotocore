@@ -1,53 +1,8 @@
 from collections import OrderedDict
-from enum import Enum
 from typing import TypeVar, Generic, Type, Optional, Dict, Any, Sequence, Callable
 
+from .constants import DataType, KeyType, NoDefault, IndexDataTypes
 from .exceptions import ValidationError
-
-
-class NoDefaultType:
-    def __repr__(self):
-        return "<NoDefault>"
-
-
-NoDefault = NoDefaultType()
-
-
-class DataType(Enum):
-    """
-    Data types supported by DynamoDB
-    """
-
-    Number = "N"
-    String = "S"
-    Binary = "B"
-    Bool = "BOOL"
-    List = "L"
-    Map = "M"
-    NumberSet = "NS"
-    StringSet = "SS"
-    BinarySet = "BS"
-
-
-IndexDataTypes = (DataType.Number, DataType.String, DataType.Binary)
-
-
-class KeyType(Enum):
-    """
-    Key types supported by DynamoDB
-    """
-
-    Hash = "HASH"
-    Range = "RANGE"
-
-
-class BillingMode(Enum):
-    """
-    Billing mode
-    """
-
-    Provisioned = "PROVISIONED"
-    PayPerRequest = "PAY_PER_REQUEST"
 
 
 VT_ = TypeVar("VT_")
@@ -109,6 +64,7 @@ class Attribute(Generic[VT_]):
     def __set_name__(self, owner: Type["Table"], name: str):
         self.set_attrs_from_name(name)
         owner.__attributes__.append(self)
+        # owner.__annotations__[name] = self.python_type
 
     def set_attrs_from_name(self, attr_name: str):
         """
@@ -116,6 +72,7 @@ class Attribute(Generic[VT_]):
         """
         self.attr_name = attr_name
         self.name = self.name or attr_name
+
     #
     # def add_to_table(self, attr_name: str, klass: "Table"):
     #     """
@@ -223,7 +180,7 @@ class TableMeta(type):
     """
 
     @classmethod
-    def __prepare__(mcs, name, bases):
+    def __prepare__(mcs, class_name, bases, **_):
         return OrderedDict()
 
     def __new__(mcs, class_name, bases, attrs, name: str = None):

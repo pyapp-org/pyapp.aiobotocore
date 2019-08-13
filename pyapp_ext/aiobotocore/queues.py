@@ -35,7 +35,14 @@ class SQSBase:
     Base Message Queue
     """
 
-    __slots__ = ("queue_name", "aws_config", "client_args", "_client", "_queue_url", "loop")
+    __slots__ = (
+        "queue_name",
+        "aws_config",
+        "client_args",
+        "_client",
+        "_queue_url",
+        "loop",
+    )
 
     @inject
     def __init__(
@@ -44,7 +51,7 @@ class SQSBase:
         queue_name: str,
         aws_config: str = None,
         client_args: Dict[str, Any] = None,
-        loop: asyncio.AbstractEventLoop = None
+        loop: asyncio.AbstractEventLoop = None,
     ):
         self.queue_name = queue_name
         self.aws_config = aws_config

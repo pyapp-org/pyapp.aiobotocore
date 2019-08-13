@@ -1,9 +1,19 @@
+"""
+DynamoDB Attributes
+~~~~~~~~~~~~~~~~~~~
+
+Attributes that cover all DynamoDB data-types with some additional types that
+handle other common Python data types (date/times, UUID, URLs).
+
+"""
+
 from datetime import datetime
 from typing import List, Set, Any, Optional, Dict
 from uuid import UUID
 from yarl import URL
 
-from .base import Attribute, DataType
+from .base import Attribute
+from .constants import DataType
 from .exceptions import ValidationError
 from .utils import clean
 
@@ -13,6 +23,7 @@ class StringAttribute(Attribute[str]):
     String attribute
     """
 
+    python_type = str
     dynamo_type = DataType.String
 
     async def clean_value(self, value: Any) -> Optional[str]:
@@ -29,6 +40,7 @@ class BinaryAttribute(Attribute[bytes]):
     Binary attribute
     """
 
+    python_type = bytes
     dynamo_type = DataType.Binary
 
     def prepare(self, value: bytes) -> str:
@@ -40,6 +52,7 @@ class IntegerAttribute(Attribute[int]):
     Integer attribute
     """
 
+    python_type = int
     dynamo_type = DataType.Number
 
     async def clean_value(self, value: Any) -> Optional[int]:
@@ -59,6 +72,7 @@ class FloatAttribute(Attribute[float]):
     Float attribute
     """
 
+    python_type = float
     dynamo_type = DataType.Number
 
     async def clean_value(self, value: Any) -> Optional[float]:
@@ -78,6 +92,7 @@ class BooleanAttribute(Attribute[bool]):
     Boolean Attribute
     """
 
+    python_type = bool
     dynamo_type = DataType.Bool
 
     async def clean_value(self, value: Any) -> Optional[float]:
@@ -97,6 +112,7 @@ class DateTimeAttribute(Attribute[datetime]):
     Date/Time attribute
     """
 
+    python_type = datetime
     dynamo_type = DataType.String
 
     async def clean_value(self, value: Any) -> Optional[datetime]:
@@ -117,6 +133,7 @@ class UUIDAttribute(Attribute[UUID]):
     UUID attribute
     """
 
+    python_type = UUID
     dynamo_type = DataType.String
 
     async def clean_value(self, value: Any) -> Optional[UUID]:
@@ -137,6 +154,7 @@ class URLAttribute(Attribute[URL]):
     URL attribute
     """
 
+    python_type = URL
     dynamo_type = DataType.String
 
     async def clean_value(self, value: Any) -> Optional[URL]:
@@ -157,6 +175,7 @@ class StringSetAttribute(StringAttribute):
     String Set Attribute
     """
 
+    python_type = Set[str]
     dynamo_type = DataType.StringSet
 
     async def clean_value(self, value: Any) -> Optional[set]:
@@ -179,6 +198,7 @@ class BinarySetAttribute(BinaryAttribute):
     Binary Set Attribute
     """
 
+    python_type = Set[bytes]
     dynamo_type = DataType.BinarySet
 
     async def clean_value(self, value: Any) -> Optional[set]:
@@ -201,6 +221,7 @@ class IntegerSetAttribute(IntegerAttribute):
     Integer Set Attribute
     """
 
+    python_type = Set[int]
     dynamo_type = DataType.NumberSet
 
     async def clean_value(self, value: Any) -> Optional[set]:
@@ -223,6 +244,7 @@ class FloatSetAttribute(FloatAttribute):
     Float Set Attribute
     """
 
+    python_type = Set[float]
     dynamo_type = DataType.NumberSet
 
     async def clean_value(self, value: Any) -> Optional[set]:
@@ -250,6 +272,7 @@ class ListAttribute(Attribute):
     def __init__(self, containing_attribute: Attribute, name: str = None, **kwargs):
         super().__init__(name, **kwargs)
         self.containing_attribute = containing_attribute
+        self.python_type = List[containing_attribute.python_type]
 
     async def clean_value(self, value: Any) -> Optional[list]:
         if value is None:

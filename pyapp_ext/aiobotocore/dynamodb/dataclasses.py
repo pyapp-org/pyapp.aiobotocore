@@ -37,7 +37,8 @@ from dataclasses import MISSING, Field, fields, is_dataclass, _process_class
 from functools import partial
 from typing import List, Callable, Any, Tuple, Dict, _GenericAlias, Type
 
-from .base import KeyType, Attribute, BillingMode, DataType
+from .base import Attribute
+from .constants import KeyType, BillingMode, DataType
 from .exceptions import DynamoDBError
 from .attributes import SIMPLE_TYPES, SET_TYPES, ListAttribute
 
@@ -248,5 +249,7 @@ async def fromitem(klass: Type, data: Dict[str, Any]):
     """
     Convert DynamoDB item into a dataclass.
     """
-    values = {a.attr_name: await a.from_dynamo(data.get(a.name)) for a in attributes(klass)}
+    values = {
+        a.attr_name: await a.from_dynamo(data.get(a.name)) for a in attributes(klass)
+    }
     return klass(**values)
