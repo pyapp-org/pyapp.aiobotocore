@@ -1,9 +1,8 @@
 from collections import OrderedDict
-from typing import TypeVar, Generic, Type, Optional, Dict, Any, Sequence, Callable
+from typing import TypeVar, Generic, Type, Optional, Dict, Any, Sequence, Callable, List, Union
 
 from .constants import DataType, KeyType, NoDefault, IndexDataTypes
-from .exceptions import ValidationError
-
+from .exceptions import ValidationError, InvalidKey, MultipleKeys
 
 VT_ = TypeVar("VT_")
 
@@ -36,7 +35,7 @@ class Attribute(Generic[VT_]):
         # Ensure only data types that can be indexed are used if
         # an this attribute is a key field.
         if key_type and self.dynamo_type not in IndexDataTypes:
-            raise ValueError(f"Only {IndexDataTypes} types can be indexed")
+            raise InvalidKey(f"Only {IndexDataTypes} types can be indexed")
 
         # Determine correct default
         if default is NoDefault and default_factory is NoDefault:
@@ -59,12 +58,29 @@ class Attribute(Generic[VT_]):
             return self
 
     def __set__(self, instance, value):
-        instance.__dict__[self.attr_name] = value
+        old_value = instance.__dict__.get(self.attr_name)
+        if old_value != value:
+            instance.__dict__[self.attr_name] = value
 
-    def __set_name__(self, owner: Type["Table"], name: str):
+            # Track changes
+            try:
+                instance.__updated__.add(self.attr_name)
+            except AttributeError:
+                instance.__updated__ = {self.attr_name}
+
+    def __set_name__(self, owner: Union[Type["Table"], Type["Item"]], name: str):
         self.set_attrs_from_name(name)
         owner.__attributes__.append(self)
-        # owner.__annotations__[name] = self.python_type
+        owner.__annotations__[name] = self.python_type
+
+        if self.key_type:
+            if not hasattr(owner, "__table_keys__"):
+                raise InvalidKey("Keys can only be defined on a table.")
+
+            if self.key_type in owner.__table_keys__:
+                raise MultipleKeys(f"Multiple {self.key_type.name} keys defined on {owner}")
+
+            owner.__table_keys__[self.key_type] = self
 
     def set_attrs_from_name(self, attr_name: str):
         """
@@ -72,14 +88,6 @@ class Attribute(Generic[VT_]):
         """
         self.attr_name = attr_name
         self.name = self.name or attr_name
-
-    #
-    # def add_to_table(self, attr_name: str, klass: "Table"):
-    #     """
-    #     Called by the table meta class to apply name to object
-    #     """
-    #     self.set_attrs_from_name(attr_name)
-    #     klass.__attributes__.append(self)
 
     @property
     def key_schema(self) -> Optional[Dict[str, str]]:
@@ -185,8 +193,11 @@ class TableMeta(type):
 
     def __new__(mcs, class_name, bases, attrs, name: str = None):
         super_new = super().__new__
-        attrs["__attributes__"] = []
         attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
+        attrs["__attributes__"] = []
+        attrs["__table_keys__"] = {}
+        if "__annotations__" not in attrs:
+            attrs["__annotations__"] = {}
         return super_new(mcs, class_name, bases, attrs)
 
 
@@ -194,3 +205,30 @@ class Table(metaclass=TableMeta):
     """
     Table base class
     """
+    __table_name__: str
+    __table_keys__: Dict[KeyType, Attribute]
+    __attributes__: List[Attribute]
+
+
+class ItemMeta(type):
+    """
+    Meta class to automate the creation of Table classes.
+    """
+
+    @classmethod
+    def __prepare__(mcs, class_name, bases, **_):
+        return OrderedDict()
+
+    def __new__(mcs, class_name, bases, attrs):
+        super_new = super().__new__
+        attrs["__attributes__"] = []
+        if "__annotations__" not in attrs:
+            attrs["__annotations__"] = {}
+        return super_new(mcs, class_name, bases, attrs)
+
+
+class Item(metaclass=ItemMeta):
+    """
+    Item base class
+    """
+    __attributes__: List[Attribute]

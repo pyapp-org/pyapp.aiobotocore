@@ -10,6 +10,18 @@ class NotATable(DynamoDBError):
     """
 
 
+class InvalidKey(DynamoDBError):
+    """
+    A key is invalid
+    """
+
+
+class MultipleKeys(InvalidKey):
+    """
+    Multiple values have been specified for the key
+    """
+
+
 class ValidationError(DynamoDBError):
     """
     Error when validation fails.

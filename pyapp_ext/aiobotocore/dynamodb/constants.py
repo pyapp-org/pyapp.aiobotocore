@@ -1,6 +1,6 @@
 from enum import Enum
 
-__all__ = ("NoDefault", "DataType", "IndexDataTypes", "KeyType", "BillingMode")
+__all__ = ("NoDefault", "DataType", "IndexDataTypes", "KeyType", "BillingMode", "ReturnValues")
 
 
 class NoDefaultType:
@@ -39,10 +39,19 @@ class KeyType(Enum):
     Range = "RANGE"
 
 
-class BillingMode(Enum):
+class BillingMode(str, Enum):
     """
     Billing mode
     """
 
     Provisioned = "PROVISIONED"
     PayPerRequest = "PAY_PER_REQUEST"
+
+
+class ReturnValues(str, Enum):
+    """
+    Return values
+    """
+
+    ReturnNone = "NONE"
+    AllOld = "ALL_OLD"

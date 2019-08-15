@@ -8,7 +8,8 @@ handle other common Python data types (date/times, UUID, URLs).
 """
 
 from datetime import datetime
-from typing import List, Set, Any, Optional, Dict
+from enum import Enum, IntEnum
+from typing import List, Set, Any, Optional, Dict, Type
 from uuid import UUID
 from yarl import URL
 
@@ -126,6 +127,33 @@ class DateTimeAttribute(Attribute[datetime]):
 
     def prepare(self, value: datetime) -> str:
         return value.isoformat()
+
+
+class EnumAttribute(Attribute[Enum]):
+    """
+    Enum attribute
+    """
+
+    python_type = Enum
+    dynamo_type = DataType.String
+
+    def __init__(self, enum: Type[Enum], name: str = None, **kwargs):
+        super().__init__(name, **kwargs)
+        self.enum = enum
+        if isinstance(enum, IntEnum):
+            self.dynamo_type = DataType.Number
+
+    async def clean_value(self, value: Any) -> Optional[Enum]:
+        if value is None or isinstance(value, self.enum):
+            return value
+
+        try:
+            return self.enum(value)
+        except (TypeError, ValueError):
+            raise ValidationError("Invalid UUID")
+
+    def prepare(self, value: Enum) -> str:
+        return str(value.value)
 
 
 class UUIDAttribute(Attribute[UUID]):
