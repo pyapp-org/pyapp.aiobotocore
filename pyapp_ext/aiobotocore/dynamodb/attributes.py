@@ -9,7 +9,7 @@ handle other common Python data types (date/times, UUID, URLs).
 
 from datetime import datetime
 from enum import Enum, IntEnum
-from typing import List, Set, Any, Optional, Dict, Type
+from typing import List, Set, Any, Optional, Dict, Type, Sequence
 from uuid import UUID
 from yarl import URL
 
@@ -255,6 +255,9 @@ class IntegerSetAttribute(IntegerAttribute):
     async def clean_value(self, value: Any) -> Optional[set]:
         if value is None:
             return set()
+
+        if isinstance(value, Sequence):
+            value = set(value)
 
         if isinstance(value, set):
             # TODO: Validate items

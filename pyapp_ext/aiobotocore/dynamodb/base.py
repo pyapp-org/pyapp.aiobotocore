@@ -66,7 +66,7 @@ class Attribute(Generic[VT_]):
             try:
                 instance.__updated__.add(self.attr_name)
             except AttributeError:
-                instance.__updated__ = {self.attr_name}
+                pass
 
     def __set_name__(self, owner: Union[Type["Table"], Type["Item"]], name: str):
         self.set_attrs_from_name(name)
@@ -182,32 +182,32 @@ class Attribute(Generic[VT_]):
         setattr(obj, self.attr_name, value)
 
 
-class TableMeta(type):
-    """
-    Meta class to automate the creation of Table classes.
-    """
+def _create_init(attrs: Sequence[Attribute]):
+    func_def = [
+        f"def __init__(self, {', '.join(f'{a.attr_name} = NoDefault' for a in attrs)}):",
+        f"    d = self.__dict__"
+    ]
+    func_def.extend(f"    if {a.attr_name} is not NoDefault:\n"
+                    f"        d['{a.attr_name}'] = {a.attr_name}" for a in attrs)
+    func_def.append("    self.__updated__ = set()")
+    func_def = "\n".join(func_def)
 
-    @classmethod
-    def __prepare__(mcs, class_name, bases, **_):
-        return OrderedDict()
-
-    def __new__(mcs, class_name, bases, attrs, name: str = None):
-        super_new = super().__new__
-        attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
-        attrs["__attributes__"] = []
-        attrs["__table_keys__"] = {}
-        if "__annotations__" not in attrs:
-            attrs["__annotations__"] = {}
-        return super_new(mcs, class_name, bases, attrs)
+    local_vars = {}
+    exec(func_def, {"NoDefault": NoDefault}, local_vars)
+    return local_vars['__init__']
 
 
-class Table(metaclass=TableMeta):
+class BaseItem:
     """
-    Table base class
+    Item base class
     """
-    __table_name__: str
-    __table_keys__: Dict[KeyType, Attribute]
     __attributes__: List[Attribute]
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__init__ is object.__init__:
+            init_func = _create_init(cls.__attributes__)
+            cls.__init__ = init_func
+        return super().__new__(cls)
 
 
 class ItemMeta(type):
@@ -220,15 +220,31 @@ class ItemMeta(type):
         return OrderedDict()
 
     def __new__(mcs, class_name, bases, attrs):
-        super_new = super().__new__
         attrs["__attributes__"] = []
         if "__annotations__" not in attrs:
             attrs["__annotations__"] = {}
-        return super_new(mcs, class_name, bases, attrs)
+        return super().__new__(mcs, class_name, bases, attrs)
 
 
-class Item(metaclass=ItemMeta):
+class Item(BaseItem, metaclass=ItemMeta):
     """
     Item base class
     """
-    __attributes__: List[Attribute]
+
+
+class TableMeta(ItemMeta):
+    """
+    Meta class to automate the creation of Table classes.
+    """
+    def __new__(mcs, class_name, bases, attrs, name: str = None):
+        attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
+        attrs["__table_keys__"] = {}
+        return super().__new__(mcs, class_name, bases, attrs)
+
+
+class Table(BaseItem, metaclass=TableMeta):
+    """
+    Table base class
+    """
+    __table_name__: str
+    __table_keys__: Dict[KeyType, Attribute]

@@ -2,18 +2,23 @@ from typing import Tuple, Type
 
 from .base import Table
 from .constants import BillingMode, ReturnValues
-from .utils import get_attributes, to_dynamo, to_dynamo_key
+from .utils import get_attributes, to_dynamo, to_dynamo_key, clean as clean_
 from ..factory import create_client
 
 
 class Session:
     """
-
+    Session object that wraps a DynamoDB async client
     """
-    def __init__(self, *, config_name: str = None):
-        self.client = create_client("dynamodb", config_name)
 
-    def create_table(self, table: Type[Table], provisioned_throughput: Tuple[int, int] = None):
+    @classmethod
+    def get(cls, *, config_name: str = None):
+        return cls(create_client("dynamodb", config_name))
+
+    def __init__(self, client):
+        self.client = client
+
+    async def create_table(self, table: Type[Table], provisioned_throughput: Tuple[int, int] = None):
         """
         Create a table.
         """
@@ -36,15 +41,17 @@ class Session:
                 "WriteCapacityUnits": write_cap,
             }
 
-        return self.client.create_table(**kwargs)
+        return await self.client.create_table(**kwargs)
 
-    def put_item(self, item: Table, expression = None):
+    async def put_item(self, item: Table, *, clean: bool = True, expression = None):
         """
         Store an item
         """
-        document = to_dynamo(item)
+        if clean:
+            await clean_(item)
 
-        return self.client.put_item(
+        document = to_dynamo(item)
+        return await self.client.put_item(
             Table_name=item.__table_name__,
             Item=document,
             ReturnValues=ReturnValues.ReturnNone
@@ -63,12 +70,12 @@ class Session:
     #         AttributeUpdates=document
     #     )
 
-    def delete_item(self, item: Table, expression = None):
+    async def delete_item(self, item: Table, expression = None):
         """
         Delete a table item.
         """
         key = to_dynamo_key(item)
-        return self.client.delete_item(
+        return await self.client.delete_item(
             TableName=item.__table_name__,
             Key=key,
             ConditionExpression=None,
