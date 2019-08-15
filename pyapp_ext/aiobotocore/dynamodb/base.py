@@ -7,6 +7,12 @@ from .exceptions import ValidationError, InvalidKey, MultipleKeys
 VT_ = TypeVar("VT_")
 
 
+class Expression:
+    def __init__(self, attribute: "Attribute", table: "Table"):
+        self.attribute = attribute
+        self.table = table
+
+
 class Attribute(Generic[VT_]):
     """
     A generic attribute
@@ -55,7 +61,7 @@ class Attribute(Generic[VT_]):
                 if self.default_factory:
                     return self.default_factory()
         else:
-            return self
+            return Expression(self, owner)
 
     def __set__(self, instance, value):
         old_value = instance.__dict__.get(self.attr_name)
@@ -237,7 +243,7 @@ class TableMeta(ItemMeta):
     Meta class to automate the creation of Table classes.
     """
     def __new__(mcs, class_name, bases, attrs, name: str = None):
-        attrs["__tablename__"] = name or attrs.get("__tablename__", class_name)
+        attrs["__table_name__"] = name or attrs.get("__table_name__", class_name)
         attrs["__table_keys__"] = {}
         return super().__new__(mcs, class_name, bases, attrs)
 

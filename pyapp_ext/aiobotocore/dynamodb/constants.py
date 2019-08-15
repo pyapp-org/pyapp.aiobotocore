@@ -30,7 +30,7 @@ class DataType(Enum):
 IndexDataTypes = (DataType.Number, DataType.String, DataType.Binary)
 
 
-class KeyType(Enum):
+class KeyType(str, Enum):
     """
     Key types supported by DynamoDB
     """
@@ -55,3 +55,14 @@ class ReturnValues(str, Enum):
 
     ReturnNone = "NONE"
     AllOld = "ALL_OLD"
+
+
+class Select(str, Enum):
+    """
+    Attributes to select
+    """
+
+    All = "All_ATTRIBUTES"
+    AllProjected = "ALL_PROJECTED_ATTRIBUTES"
+    Count = "COUNT"
+    Specific = "SPECIFIC_ATTRIBUTES"

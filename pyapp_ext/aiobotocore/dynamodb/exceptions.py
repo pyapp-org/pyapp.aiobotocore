@@ -22,6 +22,10 @@ class MultipleKeys(InvalidKey):
     """
 
 
+class TableNotFound(DynamoDBError):
+    pass
+
+
 class ValidationError(DynamoDBError):
     """
     Error when validation fails.
