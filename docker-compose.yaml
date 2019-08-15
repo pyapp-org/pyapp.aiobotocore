@@ -1,0 +1,13 @@
+version: "3.3"
+
+services:
+  dynamodb:
+    image: amazon/dynamodb-local
+    ports:
+      - 8324:8000
+
+  sqs:
+    image: roribio16/alpine-sqs
+    ports:
+      - 9324:9324
+      - 9325:9325
