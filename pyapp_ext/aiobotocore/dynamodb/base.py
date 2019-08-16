@@ -1,16 +1,82 @@
 from collections import OrderedDict
-from typing import TypeVar, Generic, Type, Optional, Dict, Any, Sequence, Callable, List, Union
+from typing import (
+    TypeVar,
+    Generic,
+    Type,
+    Optional,
+    Dict,
+    Any,
+    Sequence,
+    Callable,
+    List,
+    Union,
+)
 
-from .constants import DataType, KeyType, NoDefault, IndexDataTypes
+from .constants import DataType, KeyType, NoDefault, IndexDataTypes, Operation
 from .exceptions import ValidationError, InvalidKey, MultipleKeys
 
 VT_ = TypeVar("VT_")
 
 
+class Comparison:
+    """
+    Left side of an expression
+    """
+
+    def __init__(self, attribute: "Attribute"):
+        self.attribute = attribute
+        self.op: Operation = None
+        self.value = None
+
+    def __str__(self):
+        return self.op.value.format(self.attribute.name, self.value)
+
+    def __eq__(self, other):
+        self.value = self.attribute.clean(other)
+        self.op = Operation.EQ
+
+    def __gt__(self, other):
+        self.value = self.attribute.clean(other)
+        self.op = Operation.GT
+
+    def __ge__(self, other):
+        self.op = Operation.GE
+        self.value = self.attribute.clean(other)
+
+    def __lt__(self, other):
+        self.op = Operation.LT
+        self.value = self.attribute.clean(other)
+
+    def __le__(self, other):
+        self.op = Operation.LE
+        self.value = self.attribute.clean(other)
+
+    def startswith(self, value):
+        self.op = Operation.STARTSWITH
+        self.value = self.attribute.clean(value)
+
+    def between(self, min_value, max_value):
+        self.op = Operation.BETWEEN
+        self.value = (self.attribute.clean(min_value), self.attribute.clean(max_value))
+
+
 class Expression:
-    def __init__(self, attribute: "Attribute", table: "Table"):
+    """
+    Filtering
+    """
+
+    def __init__(self, left: "Expression", right):
         self.attribute = attribute
         self.table = table
+
+    def __str__(self):
+        pass
+
+    def __or__(self, other: "Expression") -> "Expression":
+        pass
+
+    def __and__(self, other: "Expression") -> "Expression":
+        pass
 
 
 class Attribute(Generic[VT_]):
@@ -37,6 +103,7 @@ class Attribute(Generic[VT_]):
         self.key_type = key_type
         self.attr_name = attr_name
         self.validators = validators or []
+        self.table = None
 
         # Ensure only data types that can be indexed are used if
         # an this attribute is a key field.
@@ -76,6 +143,7 @@ class Attribute(Generic[VT_]):
 
     def __set_name__(self, owner: Union[Type["Table"], Type["Item"]], name: str):
         self.set_attrs_from_name(name)
+        self.table = owner
         owner.__attributes__.append(self)
         owner.__annotations__[name] = self.python_type
 
@@ -84,7 +152,9 @@ class Attribute(Generic[VT_]):
                 raise InvalidKey("Keys can only be defined on a table.")
 
             if self.key_type in owner.__table_keys__:
-                raise MultipleKeys(f"Multiple {self.key_type.name} keys defined on {owner}")
+                raise MultipleKeys(
+                    f"Multiple {self.key_type.name} keys defined on {owner}"
+                )
 
             owner.__table_keys__[self.key_type] = self
 
@@ -191,22 +261,26 @@ class Attribute(Generic[VT_]):
 def _create_init(attrs: Sequence[Attribute]):
     func_def = [
         f"def __init__(self, {', '.join(f'{a.attr_name} = NoDefault' for a in attrs)}):",
-        f"    d = self.__dict__"
+        f"    d = self.__dict__",
     ]
-    func_def.extend(f"    if {a.attr_name} is not NoDefault:\n"
-                    f"        d['{a.attr_name}'] = {a.attr_name}" for a in attrs)
+    func_def.extend(
+        f"    if {a.attr_name} is not NoDefault:\n"
+        f"        d['{a.attr_name}'] = {a.attr_name}"
+        for a in attrs
+    )
     func_def.append("    self.__updated__ = set()")
     func_def = "\n".join(func_def)
 
     local_vars = {}
     exec(func_def, {"NoDefault": NoDefault}, local_vars)
-    return local_vars['__init__']
+    return local_vars["__init__"]
 
 
 class BaseItem:
     """
     Item base class
     """
+
     __attributes__: List[Attribute]
 
     def __new__(cls, *args, **kwargs):
@@ -242,6 +316,7 @@ class TableMeta(ItemMeta):
     """
     Meta class to automate the creation of Table classes.
     """
+
     def __new__(mcs, class_name, bases, attrs, name: str = None):
         attrs["__table_name__"] = name or attrs.get("__table_name__", class_name)
         attrs["__table_keys__"] = {}
@@ -252,5 +327,6 @@ class Table(BaseItem, metaclass=TableMeta):
     """
     Table base class
     """
+
     __table_name__: str
     __table_keys__: Dict[KeyType, Attribute]
