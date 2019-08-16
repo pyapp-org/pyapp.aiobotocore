@@ -1,6 +1,13 @@
 from enum import Enum
 
-__all__ = ("NoDefault", "DataType", "IndexDataTypes", "KeyType", "BillingMode", "ReturnValues")
+__all__ = (
+    "NoDefault",
+    "DataType",
+    "IndexDataTypes",
+    "KeyType",
+    "BillingMode",
+    "ReturnValues",
+)
 
 
 class NoDefaultType:
@@ -66,3 +73,17 @@ class Select(str, Enum):
     AllProjected = "ALL_PROJECTED_ATTRIBUTES"
     Count = "COUNT"
     Specific = "SPECIFIC_ATTRIBUTES"
+
+
+class Operation(Enum):
+    """
+    Comparisons supported by expressions
+    """
+
+    EQ = "{} == {}"
+    GT = "{} > {}"
+    GE = "{} >= {}"
+    LT = "{} < {}"
+    LE = "{} <= {}"
+    STARTSWITH = "{}.startswith({})"
+    BETWEEN = "{}.between({}, {})"

@@ -19,9 +19,7 @@ class Record(ddb.Table, name="TestRecord"):
 async def main():
     async with ddb.Session(
         client=aiobotocore.get_session().create_client(
-            "dynamodb",
-            region_name="woo!",
-            endpoint_url="http://localhost:8324"
+            "dynamodb", region_name="woo!", endpoint_url="http://localhost:8324"
         )
     ) as session:
 
@@ -35,10 +33,10 @@ async def main():
         async for item in session.query(Record).consistent():
             pprint(item)
 
+        fltr = Record.age == 3
+
         # record = Record(age=10)
         # await session.put_item(record)
-
-
 
 
 if __name__ == "__main__":
