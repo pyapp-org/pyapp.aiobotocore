@@ -18,8 +18,10 @@ details to be configured via pyApp settings.
 
 The extension also provides checks to confirm the settings are correct.
 
-The extension now supports the standardised 
-`pyApp-Messaging <https://github.com/pyapp-org/pyapp-messaging>`_ interface.
+Messaging support is now handled by pyApp-Messaging-AWS_
+
+.. _pyApp-Messaging-AWS: https://github.com/pyapp-org/pyapp-messaging-aws
+
 
 Installation
 ============
@@ -65,8 +67,11 @@ API
     Get an async botocore service client instance.
 
 
+`pyapp_ext.aiobotocore.aio_create_client(service_name: str, *, credentials: str = None, **client_kwargs)`
+
+    Async get an async botocore service client instance.
+
+
 `pyapp_ext.aiobotocore.get_session(default: str = None) -> Session`
 
     Get named `Session` instance.
-
-    
