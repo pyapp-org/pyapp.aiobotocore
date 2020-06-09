@@ -1,9 +1,12 @@
+"""
+Factory classes
+"""
 import aiobotocore
 
 from botocore.session import Session
 from pyapp.conf.helpers import ThreadLocalNamedSingletonFactory
 
-__all__ = ("Session", "session_factory", "get_session", "create_client")
+__all__ = ("Session", "session_factory", "get_session", "create_client", "aio_create_client")
 
 
 class SessionFactory(ThreadLocalNamedSingletonFactory[Session]):
@@ -50,3 +53,11 @@ def create_client(service_name: str, config_name: str = None, **client_args):
     """
     session = session_factory.create(config_name)
     return session.create_client(service_name, **client_args)
+
+
+async def aio_create_client(service_name: str, config_name: str = None, **client_args):
+    """
+    Create an arbitrary asyncio AWS service client.
+    """
+    session = session_factory.create(config_name)
+    return await session._create_client(service_name, **client_args)
