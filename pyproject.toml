@@ -3,8 +3,8 @@ requires = ["poetry>=0.12"]
 build-backend = "poetry.masonry.api"
 
 [tool.poetry]
-name = "pyApp-AIOBotocore"
-version = "2.0.0b1"
+name = "pyapp-aiobotocore"
+version = "2.0b1"
 description = "pyApp Extension for AIOBotocore"
 authors = ["Tim Savage <tim@savage.company>"]
 license = "BSD-3-Clause"
@@ -32,8 +32,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.6"
 pyapp = "^4.3.0"
-pyapp-messaging = "^0.2"
-aiobotocore = ""
+aiobotocore = "*"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.4.3"
